@@ -9,7 +9,7 @@ import (
 	"github.com/short-d/short/backend/app/usecase/repository"
 )
 
-var _ repository.UserURLRelation = (*UserShortLinkSQL)(nil)
+var _ repository.UserShortLink = (*UserShortLinkSQL)(nil)
 
 // UserShortLinkSQL accesses UserShortLink information in user_short_link
 // table.
@@ -19,7 +19,7 @@ type UserShortLinkSQL struct {
 
 // CreateRelation establishes bi-directional relationship between a user and a
 // short link in user_short_link table.
-func (u UserShortLinkSQL) CreateRelation(user entity.User, shortLink entity.URL) error {
+func (u UserShortLinkSQL) CreateRelation(user entity.User, shortLink entity.ShortLink) error {
 	statement := fmt.Sprintf(`
 INSERT INTO "%s" ("%s","%s")
 VALUES ($1,$2)
@@ -61,6 +61,26 @@ func (u UserShortLinkSQL) FindAliasesByUser(user entity.User) ([]string, error) 
 	}
 
 	return aliases, nil
+}
+
+// HasMapping checks whether a given short link is tied to a user.
+func (u UserShortLinkSQL) HasMapping(user entity.User, alias string) (bool, error) {
+	query := fmt.Sprintf(`SELECT "%s" FROM "%s" WHERE "%s"=$1 AND "%s"=$2`,
+		table.UserShortLink.ColumnUserID,
+		table.UserShortLink.TableName,
+		table.UserShortLink.ColumnUserID,
+		table.UserShortLink.ColumnShortLinkAlias,
+	)
+
+	var id string
+	err := u.db.QueryRow(query, user.ID, alias).Scan(&id)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // NewUserShortLinkSQL creates UserShortLinkSQL

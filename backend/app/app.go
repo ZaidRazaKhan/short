@@ -3,9 +3,6 @@ package app
 import (
 	"time"
 
-	"github.com/short-d/app/fw/service"
-	"google.golang.org/grpc"
-
 	"github.com/short-d/app/fw/db"
 	"github.com/short-d/app/fw/env"
 	"github.com/short-d/app/fw/logger"
@@ -36,6 +33,7 @@ type ServiceConfig struct {
 	KgsHostname          string
 	KgsPort              int
 	AuthTokenLifetime    time.Duration
+	SearchTimeout        time.Duration
 	DataDogAPIKey        string
 	SegmentAPIKey        string
 	IPStackAPIKey        string
@@ -110,6 +108,7 @@ func Start(
 		kgsRPCConfig,
 		provider.WebFrontendURL(config.WebFrontendURL),
 		provider.TokenValidDuration(config.AuthTokenLifetime),
+		provider.SearchTimeout(config.SearchTimeout),
 		dataDogAPIKey,
 		segmentAPIKey,
 		ipStackAPIKey,
@@ -118,19 +117,5 @@ func Start(
 		panic(err)
 	}
 
-	httpAPI.StartAsync(config.HTTPAPIPort)
-
-	gRPCAPI := dep.InjectGRPCApi(sqlDB)
-	gRPCService, err := service.
-		NewGRPCBuilder(config.LogPrefix).
-		RegisterHandler(func(server *grpc.Server) {
-			gRPCAPI.RegisterServers(server)
-		}).
-		Build()
-
-	if err != nil {
-		panic(err)
-	}
-
-	gRPCService.StartAndWait(8081)
+	httpAPI.StartAndWait(config.HTTPAPIPort)
 }

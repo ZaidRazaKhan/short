@@ -7,18 +7,73 @@ import (
 
 	"github.com/short-d/short/backend/app/adapter/sqldb/table"
 	"github.com/short-d/short/backend/app/entity"
+	"github.com/short-d/short/backend/app/entity/metatag"
 	"github.com/short-d/short/backend/app/usecase/repository"
 )
 
-var _ repository.URL = (*ShortLinkSql)(nil)
+var _ repository.ShortLink = (*ShortLinkSQL)(nil)
 
-// ShortLinkSql accesses ShortLink information in short_link table through SQL.
-type ShortLinkSql struct {
+// ShortLinkSQL accesses ShortLink information in short_link table through SQL.
+type ShortLinkSQL struct {
 	db *sql.DB
 }
 
+// UpdateOpenGraphTags updates OpenGraph meta tags for a given short link.
+func (s ShortLinkSQL) UpdateOpenGraphTags(alias string, openGraphTags metatag.OpenGraph) (entity.ShortLink, error) {
+	statement := fmt.Sprintf(`
+UPDATE "%s"
+SET "%s"=$1, "%s"=$2, "%s"=$3
+WHERE "%s"=$4;`,
+		table.ShortLink.TableName,
+		table.ShortLink.ColumnOpenGraphTitle,
+		table.ShortLink.ColumnOpenGraphDescription,
+		table.ShortLink.ColumnOpenGraphImageURL,
+		table.ShortLink.ColumnAlias,
+	)
+
+	_, err := s.db.Exec(
+		statement,
+		openGraphTags.Title,
+		openGraphTags.Description,
+		openGraphTags.ImageURL,
+		alias,
+	)
+	if err != nil {
+		return entity.ShortLink{}, err
+	}
+
+	return s.GetShortLinkByAlias(alias)
+}
+
+// UpdateTwitterTags updates Twitter meta tags for a given short link.
+func (s ShortLinkSQL) UpdateTwitterTags(alias string, twitterTags metatag.Twitter) (entity.ShortLink, error) {
+	statement := fmt.Sprintf(`
+UPDATE "%s"
+SET "%s"=$1, "%s"=$2, "%s"=$3
+WHERE "%s"=$4;`,
+		table.ShortLink.TableName,
+		table.ShortLink.ColumnTwitterTitle,
+		table.ShortLink.ColumnTwitterDescription,
+		table.ShortLink.ColumnTwitterImageURL,
+		table.ShortLink.ColumnAlias,
+	)
+
+	_, err := s.db.Exec(
+		statement,
+		twitterTags.Title,
+		twitterTags.Description,
+		twitterTags.ImageURL,
+		alias,
+	)
+	if err != nil {
+		return entity.ShortLink{}, err
+	}
+
+	return s.GetShortLinkByAlias(alias)
+}
+
 // IsAliasExist checks whether a given alias exist in short_link table.
-func (s ShortLinkSql) IsAliasExist(alias string) (bool, error) {
+func (s ShortLinkSQL) IsAliasExist(alias string) (bool, error) {
 	query := fmt.Sprintf(`
 SELECT "%s" 
 FROM "%s" 
@@ -38,86 +93,43 @@ WHERE "%s"=$1;`,
 	return true, nil
 }
 
-// Create inserts a new ShortLink into short_link table.
-// TODO(issue#698): change to CreateURL
-func (s *ShortLinkSql) Create(shortLink entity.URL) error {
+// CreateShortLink inserts a new ShortLink into short_link table.
+func (s ShortLinkSQL) CreateShortLink(shortLink entity.ShortLink) error {
 	statement := fmt.Sprintf(`
-INSERT INTO "%s" ("%s","%s","%s","%s","%s")
-VALUES ($1, $2, $3, $4, $5);`,
+INSERT INTO "%s" ("%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s")
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);`,
 		table.ShortLink.TableName,
 		table.ShortLink.ColumnAlias,
 		table.ShortLink.ColumnLongLink,
 		table.ShortLink.ColumnExpireAt,
 		table.ShortLink.ColumnCreatedAt,
 		table.ShortLink.ColumnUpdatedAt,
+		table.ShortLink.ColumnOpenGraphTitle,
+		table.ShortLink.ColumnOpenGraphDescription,
+		table.ShortLink.ColumnOpenGraphImageURL,
+		table.ShortLink.ColumnTwitterTitle,
+		table.ShortLink.ColumnTwitterDescription,
+		table.ShortLink.ColumnTwitterImageURL,
 	)
 	_, err := s.db.Exec(
 		statement,
 		shortLink.Alias,
-		shortLink.OriginalURL,
+		shortLink.LongLink,
 		shortLink.ExpireAt,
 		shortLink.CreatedAt,
 		shortLink.UpdatedAt,
+		shortLink.OpenGraphTags.Title,
+		shortLink.OpenGraphTags.Description,
+		shortLink.OpenGraphTags.ImageURL,
+		shortLink.TwitterTags.Title,
+		shortLink.TwitterTags.Description,
+		shortLink.TwitterTags.ImageURL,
 	)
 	return err
 }
 
-func (s *ShortLinkSql) UpdateOGMetaTags(alias string, openGraphTags entity.OpenGraphTags) (entity.URL, error) {
-	statement := fmt.Sprintf(`
-UPDATE "%s"
-SET "%s"=$1, "%s"=$2, "%s"=$3
-WHERE "%s"=$4;`,
-		table.ShortLink.TableName,
-		table.ShortLink.ColumnOGTitle,
-		table.ShortLink.ColumnOGDescription,
-		table.ShortLink.ColumnOGImageURL,
-		table.ShortLink.ColumnAlias,
-	)
-
-	_, err := s.db.Exec(
-		statement,
-		openGraphTags.OpenGraphTitle,
-		openGraphTags.OpenGraphDescription,
-		openGraphTags.OpenGraphImageURL,
-		alias,
-	)
-
-	if err != nil {
-		return entity.URL{}, err
-	}
-
-	return s.GetByAlias(alias)
-}
-
-func (s *ShortLinkSql) UpdateTwitterMetaTags(alias string, twitterTags entity.TwitterTags) (entity.URL, error) {
-	statement := fmt.Sprintf(`
-UPDATE "%s"
-SET "%s"=$1, "%s"=$2, "%s"=$3
-WHERE "%s"=$4;`,
-		table.ShortLink.TableName,
-		table.ShortLink.ColumnTwitterTitle,
-		table.ShortLink.ColumnTwitterDescription,
-		table.ShortLink.ColumnTwitterImageURL,
-		table.ShortLink.ColumnAlias,
-	)
-
-	_, err := s.db.Exec(
-		statement,
-		twitterTags.TwitterTitle,
-		twitterTags.TwitterDescription,
-		twitterTags.TwitterImageURL,
-		alias,
-	)
-
-	if err != nil {
-		return entity.URL{}, err
-	}
-
-	return s.GetByAlias(alias)
-}
-
-// UpdateURL updates a ShortLink that exists within the short_link table.
-func (s *ShortLinkSql) UpdateURL(oldAlias string, newShortLink entity.URL) (entity.URL, error) {
+// UpdateShortLink updates a ShortLink that exists within the short_link table.
+func (s ShortLinkSQL) UpdateShortLink(oldAlias string, newShortLink entity.ShortLink) (entity.ShortLink, error) {
 	statement := fmt.Sprintf(`
 UPDATE "%s"
 SET "%s"=$1, "%s"=$2, "%s"=$3, "%s"=$4
@@ -127,27 +139,27 @@ WHERE "%s"=$5;`,
 		table.ShortLink.ColumnLongLink,
 		table.ShortLink.ColumnExpireAt,
 		table.ShortLink.ColumnUpdatedAt,
-		oldAlias,
+		table.ShortLink.ColumnAlias,
 	)
 
 	_, err := s.db.Exec(
 		statement,
 		newShortLink.Alias,
-		newShortLink.OriginalURL,
+		newShortLink.LongLink,
 		newShortLink.ExpireAt,
 		newShortLink.UpdatedAt,
 		oldAlias,
 	)
 
 	if err != nil {
-		return entity.URL{}, err
+		return entity.ShortLink{}, err
 	}
 
 	return newShortLink, nil
 }
 
-// GetByAlias finds an ShortLink in short_link table given alias.
-func (s ShortLinkSql) GetByAlias(alias string) (entity.URL, error) {
+// GetShortLinkByAlias finds an ShortLink in short_link table given alias.
+func (s ShortLinkSQL) GetShortLinkByAlias(alias string) (entity.ShortLink, error) {
 	statement := fmt.Sprintf(`
 SELECT "%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s"
 FROM "%s" 
@@ -157,9 +169,9 @@ WHERE "%s"=$1;`,
 		table.ShortLink.ColumnExpireAt,
 		table.ShortLink.ColumnCreatedAt,
 		table.ShortLink.ColumnUpdatedAt,
-		table.ShortLink.ColumnOGTitle,
-		table.ShortLink.ColumnOGDescription,
-		table.ShortLink.ColumnOGImageURL,
+		table.ShortLink.ColumnOpenGraphTitle,
+		table.ShortLink.ColumnOpenGraphDescription,
+		table.ShortLink.ColumnOpenGraphImageURL,
 		table.ShortLink.ColumnTwitterTitle,
 		table.ShortLink.ColumnTwitterDescription,
 		table.ShortLink.ColumnTwitterImageURL,
@@ -169,22 +181,22 @@ WHERE "%s"=$1;`,
 
 	row := s.db.QueryRow(statement, alias)
 
-	shortLink := entity.URL{}
+	shortLink := entity.ShortLink{}
 	err := row.Scan(
 		&shortLink.Alias,
-		&shortLink.OriginalURL,
+		&shortLink.LongLink,
 		&shortLink.ExpireAt,
 		&shortLink.CreatedAt,
 		&shortLink.UpdatedAt,
-		&shortLink.OpenGraphTitle,
-		&shortLink.OpenGraphDescription,
-		&shortLink.OpenGraphImageURL,
-		&shortLink.TwitterTitle,
-		&shortLink.TwitterDescription,
-		&shortLink.TwitterImageURL,
+		&shortLink.OpenGraphTags.Title,
+		&shortLink.OpenGraphTags.Description,
+		&shortLink.OpenGraphTags.ImageURL,
+		&shortLink.TwitterTags.Title,
+		&shortLink.TwitterTags.Description,
+		&shortLink.TwitterTags.ImageURL,
 	)
 	if err != nil {
-		return entity.URL{}, err
+		return entity.ShortLink{}, err
 	}
 
 	shortLink.CreatedAt = utc(shortLink.CreatedAt)
@@ -194,10 +206,10 @@ WHERE "%s"=$1;`,
 	return shortLink, nil
 }
 
-// GetByAliases finds ShortLinks for a list of aliases
-func (s ShortLinkSql) GetByAliases(aliases []string) ([]entity.URL, error) {
+// GetShortLinksByAliases finds ShortLinks for a list of aliases
+func (s ShortLinkSQL) GetShortLinksByAliases(aliases []string) ([]entity.ShortLink, error) {
 	if len(aliases) == 0 {
-		return []entity.URL{}, nil
+		return []entity.ShortLink{}, nil
 	}
 
 	parameterStr := s.composeParamList(len(aliases))
@@ -208,11 +220,11 @@ func (s ShortLinkSql) GetByAliases(aliases []string) ([]entity.URL, error) {
 		aliasesInterface = append(aliasesInterface, alias)
 	}
 
-	var shortLinks []entity.URL
+	var shortLinks []entity.ShortLink
 
 	// TODO: compare performance between Query and QueryRow. Prefer QueryRow for readability
 	statement := fmt.Sprintf(`
-SELECT "%s","%s","%s","%s","%s","%s","%s","%s" ,"%s","%s","%s" 
+SELECT "%s","%s","%s","%s","%s","%s","%s","%s","%s","%s","%s" 
 FROM "%s"
 WHERE "%s" IN (%s);`,
 		table.ShortLink.ColumnAlias,
@@ -220,9 +232,9 @@ WHERE "%s" IN (%s);`,
 		table.ShortLink.ColumnExpireAt,
 		table.ShortLink.ColumnCreatedAt,
 		table.ShortLink.ColumnUpdatedAt,
-		table.ShortLink.ColumnOGTitle,
-		table.ShortLink.ColumnOGDescription,
-		table.ShortLink.ColumnOGImageURL,
+		table.ShortLink.ColumnOpenGraphTitle,
+		table.ShortLink.ColumnOpenGraphDescription,
+		table.ShortLink.ColumnOpenGraphImageURL,
 		table.ShortLink.ColumnTwitterTitle,
 		table.ShortLink.ColumnTwitterDescription,
 		table.ShortLink.ColumnTwitterImageURL,
@@ -244,19 +256,19 @@ WHERE "%s" IN (%s);`,
 
 	defer rows.Close()
 	for rows.Next() {
-		shortLink := entity.URL{}
+		shortLink := entity.ShortLink{}
 		err := rows.Scan(
 			&shortLink.Alias,
-			&shortLink.OriginalURL,
+			&shortLink.LongLink,
 			&shortLink.ExpireAt,
 			&shortLink.CreatedAt,
 			&shortLink.UpdatedAt,
-			&shortLink.OpenGraphTitle,
-			&shortLink.OpenGraphDescription,
-			&shortLink.OpenGraphImageURL,
-			&shortLink.TwitterTitle,
-			&shortLink.TwitterDescription,
-			&shortLink.TwitterImageURL,
+			&shortLink.OpenGraphTags.Title,
+			&shortLink.OpenGraphTags.Description,
+			&shortLink.OpenGraphTags.ImageURL,
+			&shortLink.TwitterTags.Title,
+			&shortLink.TwitterTags.Description,
+			&shortLink.TwitterTags.ImageURL,
 		)
 		if err != nil {
 			return shortLinks, err
@@ -273,7 +285,7 @@ WHERE "%s" IN (%s);`,
 }
 
 // composeParamList converts an slice to a parameters string with format: $1, $2, $3, ...
-func (s ShortLinkSql) composeParamList(numParams int) string {
+func (s ShortLinkSQL) composeParamList(numParams int) string {
 	params := make([]string, 0, numParams)
 	for i := 0; i < numParams; i++ {
 		params = append(params, fmt.Sprintf("$%d", i+1))
@@ -283,9 +295,9 @@ func (s ShortLinkSql) composeParamList(numParams int) string {
 	return parameterStr
 }
 
-// NewShortLinkSql creates ShortLinkSql
-func NewShortLinkSql(db *sql.DB) *ShortLinkSql {
-	return &ShortLinkSql{
+// NewShortLinkSQL creates ShortLinkSQL
+func NewShortLinkSQL(db *sql.DB) ShortLinkSQL {
+	return ShortLinkSQL{
 		db: db,
 	}
 }

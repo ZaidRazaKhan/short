@@ -11,19 +11,10 @@ import {
   IGraphQLError,
   IGraphQLRequestError
 } from './GraphQL.service';
-
-interface ICreatedUrl {
-  alias: string;
-  originalURL: string;
-}
-
-interface IAuthMutation {
-  createURL: ICreatedUrl;
-}
-
-interface ICreateURLData {
-  authMutation: IAuthMutation;
-}
+import {
+  IShortGraphQLShortLink,
+  IShortGraphQLMutation
+} from './shortGraphQL/schema';
 
 interface ICreateShortLinkErrs {
   authorizationErr?: string;
@@ -34,20 +25,20 @@ const gqlCreateURL = `
   mutation params(
     $captchaResponse: String!
     $authToken: String!
-    $urlInput: URLInput!
+    $shortLinkInput: ShortLinkInput!
     $isPublic: Boolean!
   ) {
     authMutation(authToken: $authToken, captchaResponse: $captchaResponse) {
-      createURL(url: $urlInput, isPublic: $isPublic) {
+      createShortLink(shortLink: $shortLinkInput, isPublic: $isPublic) {
         alias
-        originalURL
+        longLink
       }
     }
   }
 `;
 
 export class UrlService {
-  private graphQLBaseURL: string;
+  private readonly graphQLBaseURL: string;
 
   constructor(
     private authService: AuthService,
@@ -146,12 +137,14 @@ export class UrlService {
     return new Promise<Url>( // TODO(issue#599): simplify business logic below to improve readability
       (resolve: (createdURL: Url) => void, reject: (errCode: Err) => any) => {
         this.graphQLService
-          .mutate<ICreateURLData>(this.graphQLBaseURL, {
+          .mutate<IShortGraphQLMutation>(this.graphQLBaseURL, {
             mutation: gqlCreateURL,
             variables: variables
           })
-          .then((res: ICreateURLData) => {
-            const url = this.getUrlFromCreatedUrl(res.authMutation.createURL);
+          .then((res: IShortGraphQLMutation) => {
+            const url = this.getUrlFromCreatedUrl(
+              res.authMutation.createShortLink
+            );
             resolve(url);
           })
           .catch((err: IGraphQLRequestError) => {
@@ -175,9 +168,9 @@ export class UrlService {
     );
   }
 
-  private getUrlFromCreatedUrl(createdUrl: ICreatedUrl): Url {
+  private getUrlFromCreatedUrl(createdUrl: IShortGraphQLShortLink): Url {
     return {
-      originalUrl: createdUrl.originalURL,
+      originalUrl: createdUrl.longLink,
       alias: createdUrl.alias
     };
   }
@@ -190,8 +183,8 @@ export class UrlService {
     return {
       captchaResponse: captchaResponse,
       authToken: this.authService.getAuthToken(),
-      urlInput: {
-        originalURL: link.originalUrl,
+      shortLinkInput: {
+        longLink: link.originalUrl,
         customAlias: link.alias
       },
       isPublic

@@ -10,8 +10,10 @@ const (
 	ErrCodeRequesterNotHuman          = "requesterNotHuman"
 	ErrCodeInvalidLongLink            = "invalidLongLink"
 	ErrCodeInvalidCustomAlias         = "invalidCustomAlias"
+	ErrCodeAliasWithFragment          = "aliasWithFragment"
 	ErrCodeMaliciousContent           = "maliciousContent"
 	ErrCodeInvalidAuthToken           = "invalidAuthToken"
+	ErrCodeUnauthorizedAction         = "unauthorizedAction"
 )
 
 // GraphQlError represents a GraphAPI error.
@@ -39,14 +41,14 @@ func (e ErrUnknown) Error() string {
 	return "unknown err"
 }
 
-// ErrURLAliasExist signifies a wanted short link alias is not available.
-type ErrURLAliasExist string
+// ErrAliasExist signifies a wanted short link alias is not available.
+type ErrAliasExist string
 
-var _ GraphQlError = (*ErrURLAliasExist)(nil)
+var _ GraphQlError = (*ErrAliasExist)(nil)
 
 // Extensions keeps structured error metadata so that the clients can reliably
 // handle the error.
-func (e ErrURLAliasExist) Extensions() map[string]interface{} {
+func (e ErrAliasExist) Extensions() map[string]interface{} {
 	return map[string]interface{}{
 		"code":  ErrCodeAliasAlreadyExist,
 		"alias": string(e),
@@ -54,8 +56,8 @@ func (e ErrURLAliasExist) Extensions() map[string]interface{} {
 }
 
 // Error retrieves the human readable error message.
-func (e ErrURLAliasExist) Error() string {
-	return "url alias already exists"
+func (e ErrAliasExist) Error() string {
+	return "shortlink alias already exists"
 }
 
 // ErrNotHuman signifies that the API consumer is not human.
@@ -77,7 +79,10 @@ func (e ErrNotHuman) Error() string {
 }
 
 // ErrInvalidLongLink signifies that the provided long link has incorrect format.
-type ErrInvalidLongLink string
+type ErrInvalidLongLink struct {
+	longLink  string
+	violation string
+}
 
 var _ GraphQlError = (*ErrInvalidLongLink)(nil)
 
@@ -85,8 +90,9 @@ var _ GraphQlError = (*ErrInvalidLongLink)(nil)
 // handle the error.
 func (e ErrInvalidLongLink) Extensions() map[string]interface{} {
 	return map[string]interface{}{
-		"code":     ErrCodeInvalidLongLink,
-		"longLink": string(e),
+		"code":      ErrCodeInvalidLongLink,
+		"longLink":  e.longLink,
+		"violation": e.violation,
 	}
 }
 
@@ -97,7 +103,10 @@ func (e ErrInvalidLongLink) Error() string {
 
 // ErrInvalidCustomAlias signifies that the provided custom alias has incorrect
 // format.
-type ErrInvalidCustomAlias string
+type ErrInvalidCustomAlias struct {
+	customAlias string
+	violation   string
+}
 
 var _ GraphQlError = (*ErrInvalidCustomAlias)(nil)
 
@@ -106,7 +115,8 @@ var _ GraphQlError = (*ErrInvalidCustomAlias)(nil)
 func (e ErrInvalidCustomAlias) Extensions() map[string]interface{} {
 	return map[string]interface{}{
 		"code":        ErrCodeInvalidCustomAlias,
-		"customAlias": string(e),
+		"customAlias": e.customAlias,
+		"violation":   e.violation,
 	}
 }
 
@@ -150,4 +160,23 @@ func (e ErrMaliciousContent) Extensions() map[string]interface{} {
 // Error retrieves the human readable error message.
 func (e ErrMaliciousContent) Error() string {
 	return "contains malicious content"
+}
+
+// ErrUnauthorizedAction signifies the requesting user is not allowed to perform certain action.
+type ErrUnauthorizedAction string
+
+var _ GraphQlError = (*ErrUnauthorizedAction)(nil)
+
+// Extensions keeps structured error metadata so that the clients can reliably
+// handle the error.
+func (e ErrUnauthorizedAction) Extensions() map[string]interface{} {
+	return map[string]interface{}{
+		"code":   ErrCodeUnauthorizedAction,
+		"action": string(e),
+	}
+}
+
+// Error retrieves the human readable error message.
+func (e ErrUnauthorizedAction) Error() string {
+	return "unauthorized action"
 }

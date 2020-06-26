@@ -1,7 +1,7 @@
 package routing
 
 import (
-	netURL "net/url"
+	"net/url"
 
 	"github.com/short-d/app/fw/router"
 	"github.com/short-d/app/fw/timer"
@@ -9,10 +9,12 @@ import (
 	"github.com/short-d/short/backend/app/adapter/github"
 	"github.com/short-d/short/backend/app/adapter/google"
 	"github.com/short-d/short/backend/app/adapter/request"
-	"github.com/short-d/short/backend/app/adapter/routing/analytics"
+	"github.com/short-d/short/backend/app/adapter/routing/handle"
+	"github.com/short-d/short/backend/app/usecase/authenticator"
 	"github.com/short-d/short/backend/app/usecase/feature"
+	"github.com/short-d/short/backend/app/usecase/search"
+	"github.com/short-d/short/backend/app/usecase/shortlink"
 	"github.com/short-d/short/backend/app/usecase/sso"
-	"github.com/short-d/short/backend/app/usecase/url"
 )
 
 // NewShort creates HTTP routing table.
@@ -20,13 +22,15 @@ func NewShort(
 	instrumentationFactory request.InstrumentationFactory,
 	webFrontendURL string,
 	timer timer.Timer,
-	urlRetriever url.Retriever,
+	shortLinkRetriever shortlink.Retriever,
 	featureDecisionMakerFactory feature.DecisionMakerFactory,
 	githubSSO github.SingleSignOn,
 	facebookSSO facebook.SingleSignOn,
 	googleSSO google.SingleSignOn,
+	authenticator authenticator.Authenticator,
+	search search.Search,
 ) []router.Route {
-	frontendURL, err := netURL.Parse(webFrontendURL)
+	frontendURL, err := url.Parse(webFrontendURL)
 	if err != nil {
 		panic(err)
 	}
@@ -34,7 +38,7 @@ func NewShort(
 		{
 			Method: "GET",
 			Path:   "/oauth/github/sign-in",
-			Handle: NewSSOSignIn(
+			Handle: handle.SSOSignIn(
 				sso.SingleSignOn(githubSSO),
 				webFrontendURL,
 			),
@@ -42,7 +46,7 @@ func NewShort(
 		{
 			Method: "GET",
 			Path:   "/oauth/github/sign-in/callback",
-			Handle: NewSSOSignInCallback(
+			Handle: handle.SSOSignInCallback(
 				sso.SingleSignOn(githubSSO),
 				*frontendURL,
 			),
@@ -50,7 +54,7 @@ func NewShort(
 		{
 			Method: "GET",
 			Path:   "/oauth/facebook/sign-in",
-			Handle: NewSSOSignIn(
+			Handle: handle.SSOSignIn(
 				sso.SingleSignOn(facebookSSO),
 				webFrontendURL,
 			),
@@ -58,7 +62,7 @@ func NewShort(
 		{
 			Method: "GET",
 			Path:   "/oauth/facebook/sign-in/callback",
-			Handle: NewSSOSignInCallback(
+			Handle: handle.SSOSignInCallback(
 				sso.SingleSignOn(facebookSSO),
 				*frontendURL,
 			),
@@ -66,7 +70,7 @@ func NewShort(
 		{
 			Method: "GET",
 			Path:   "/oauth/google/sign-in",
-			Handle: NewSSOSignIn(
+			Handle: handle.SSOSignIn(
 				sso.SingleSignOn(googleSSO),
 				webFrontendURL,
 			),
@@ -74,7 +78,7 @@ func NewShort(
 		{
 			Method: "GET",
 			Path:   "/oauth/google/sign-in/callback",
-			Handle: NewSSOSignInCallback(
+			Handle: handle.SSOSignInCallback(
 				sso.SingleSignOn(googleSSO),
 				*frontendURL,
 			),
@@ -82,9 +86,9 @@ func NewShort(
 		{
 			Method: "GET",
 			Path:   "/r/:alias",
-			Handle: NewOriginalURL(
+			Handle: handle.LongLink(
 				instrumentationFactory,
-				urlRetriever,
+				shortLinkRetriever,
 				timer,
 				*frontendURL,
 			),
@@ -92,12 +96,24 @@ func NewShort(
 		{
 			Method: "GET",
 			Path:   "/features/:featureID",
-			Handle: FeatureHandle(instrumentationFactory, featureDecisionMakerFactory),
+			Handle: handle.Feature(
+				instrumentationFactory,
+				featureDecisionMakerFactory,
+				authenticator,
+			),
 		},
 		{
 			Method: "GET",
 			Path:   "/analytics/track/:event",
-			Handle: analytics.TrackHandle(instrumentationFactory),
+			Handle: handle.Track(instrumentationFactory),
+		},
+		{
+			Method: "POST",
+			Path:   "/search",
+			Handle: handle.Search(
+				search,
+				authenticator,
+			),
 		},
 	}
 }

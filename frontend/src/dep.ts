@@ -20,8 +20,8 @@ import { ShortHTTPApi } from './service/ShortHTTP.api';
 import { DynamicDecisionService } from './service/feature-decision/DynamicDecision.service';
 import { ShortLinkService } from './service/ShortLink.service';
 import { AnalyticsService } from './service/Analytics.service';
-import { ChangeLogGraphQLApi } from './service/ChangeLogGraphQL.api';
-import { ShortLinkGraphQLApi } from './service/ShortLinkGraphQL.api';
+import { ChangeLogGraphQLApi } from './service/shortGraphQL/ChangeLogGraphQL.api';
+import { ShortLinkGraphQLApi } from './service/shortGraphQL/ShortLinkGraphQL.api';
 
 export function initEnvService(): EnvService {
   return new EnvService();
@@ -46,7 +46,7 @@ export function initUIFactory(
   );
   const errorService = new ErrorService();
   const httpService = new FetchHTTPService();
-  const shortHTTPApi = new ShortHTTPApi(httpService, envService);
+  const shortHTTPApi = new ShortHTTPApi(authService, httpService, envService);
   const dynamicDecisionService = new DynamicDecisionService(shortHTTPApi);
 
   const graphQLService = new GraphQLService(httpService);
@@ -77,7 +77,8 @@ export function initUIFactory(
   const shortLinkGraphQLApi = new ShortLinkGraphQLApi(
     authService,
     envService,
-    graphQLService
+    graphQLService,
+    captchaService
   );
   const shortLinkService = new ShortLinkService(
     shortLinkGraphQLApi,
